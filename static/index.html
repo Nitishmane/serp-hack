@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon FBA Generator</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Amazon FBA Listing Generator</h1>
+        <p class="subtitle">Enter your product name to generate SEO-optimized titles & descriptions</p>
+        
+        <form id="generatorForm">
+            <input 
+                type="text" 
+                id="productName" 
+                placeholder="e.g., stainless steel water bottle" 
+                maxlength="200"
+                required
+            >
+            <button type="submit" id="submitBtn">Generate</button>
+        </form>
+        
+        <div id="loading" class="hidden">
+            <p>Generating...</p>
+        </div>
+        
+        <div id="error" class="hidden">
+            <p class="error-message"></p>
+        </div>
+        
+        <div id="results" class="hidden">
+            <div class="result-item">
+                <h2>Amazon Title</h2>
+                <p id="resultTitle" class="copy-field"></p>
+                <button class="copy-btn">Copy</button>
+            </div>
+            
+            <div class="result-item">
+                <h2>Description</h2>
+                <p id="resultDescription" class="copy-field"></p>
+                <button class="copy-btn">Copy</button>
+            </div>
+            
+            <div class="result-item">
+                <h2>Key Bullet Points</h2>
+                <ul id="resultBullets"></ul>
+            </div>
+            
+            <div class="result-item">
+                <h2>Keywords Used</h2>
+                <div id="resultKeywords" class="tags"></div>
+            </div>
+            
+            <div class="result-item">
+                <h2>Source Info</h2>
+                <div id="resultSources"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>
