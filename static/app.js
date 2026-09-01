@@ -33,8 +33,16 @@ document.getElementById('generatorForm').addEventListener('submit', async (e) =>
 function displayResults(data) {
     document.getElementById('resultTitle').textContent = data.title;
     document.getElementById('resultDescription').textContent = data.description;
-    document.getElementById('resultBullets').innerHTML = 
-        data.bullets.map(b => `<li>${b}</li>`).join('');
+    
+    // Safely build bullet list using textContent instead of innerHTML
+    const resultBullets = document.getElementById('resultBullets');
+    resultBullets.innerHTML = '';
+    data.bullets.forEach(b => {
+        const li = document.createElement('li');
+        li.textContent = b;
+        resultBullets.appendChild(li);
+    });
+    
     document.getElementById('resultKeywords').innerHTML = 
         data.keywords_used.map(k => `<span class="tag">${k}</span>`).join('');
     

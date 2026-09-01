@@ -103,6 +103,18 @@ with valid JSON."""
             if len(input_dict.get("description", "")) > 300:
                 raise ClaudeError("Description exceeds 300 chars", 500)
             
+            # Validate bullets: must be list of 3-5 non-empty strings, each ≤100 chars
+            bullets = input_dict.get("bullets")
+            if not isinstance(bullets, list):
+                raise ClaudeError("Bullets must be a list", 500)
+            if len(bullets) < 3 or len(bullets) > 5:
+                raise ClaudeError("Must have 3-5 bullets", 500)
+            for i, bullet in enumerate(bullets):
+                if not isinstance(bullet, str) or not bullet.strip():
+                    raise ClaudeError(f"Bullet {i+1} must be a non-empty string", 500)
+                if len(bullet) > 100:
+                    raise ClaudeError(f"Bullet {i+1} exceeds 100 chars", 500)
+            
             return {
                 "title": input_dict["title"],
                 "description": input_dict["description"],

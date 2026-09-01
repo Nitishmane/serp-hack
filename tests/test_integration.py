@@ -148,3 +148,63 @@ def test_full_flow_success(client):
             assert len(data["bullets"]) > 0
             assert len(data["keywords_used"]) > 0
             assert "search_queries" in data["sources"]
+
+
+def test_generate_with_invalid_bullet_count(client):
+    """Test POST /generate with Claude returning only 1 bullet raises 500"""
+    with patch('main.serp_client.search_google') as mock_search_google:
+        with patch.object(__import__('main').claude_gen, 'generate_listing') as mock_generate:
+            # Mock SerpAPI success
+            mock_search_google.return_value = {
+                "organic_results": [{"title": "Test", "snippet": "Test snippet"}],
+                "related_searches": [],
+                "error": None
+            }
+            
+            # Mock Claude generator to return only 1 bullet (violates 3-5 requirement)
+            from src.claude_generator import ClaudeError
+            mock_generate.side_effect = ClaudeError("Must have 3-5 bullets", 500)
+            
+            response = client.post("/generate", json={"product_name": "test product"})
+            
+            assert response.status_code == 500
+
+
+def test_generate_with_bullet_exceeding_100_chars(client):
+    """Test POST /generate with Claude returning a bullet over 100 chars raises 500"""
+    with patch('main.serp_client.search_google') as mock_search_google:
+        with patch.object(__import__('main').claude_gen, 'generate_listing') as mock_generate:
+            # Mock SerpAPI success
+            mock_search_google.return_value = {
+                "organic_results": [{"title": "Test", "snippet": "Test snippet"}],
+                "related_searches": [],
+                "error": None
+            }
+            
+            # Mock Claude generator to return a bullet exceeding 100 chars
+            from src.claude_generator import ClaudeError
+            mock_generate.side_effect = ClaudeError("Bullet 1 exceeds 100 chars", 500)
+            
+            response = client.post("/generate", json={"product_name": "test product"})
+            
+            assert response.status_code == 500
+
+
+def test_generate_with_empty_bullet(client):
+    """Test POST /generate with Claude returning an empty bullet raises 500"""
+    with patch('main.serp_client.search_google') as mock_search_google:
+        with patch.object(__import__('main').claude_gen, 'generate_listing') as mock_generate:
+            # Mock SerpAPI success
+            mock_search_google.return_value = {
+                "organic_results": [{"title": "Test", "snippet": "Test snippet"}],
+                "related_searches": [],
+                "error": None
+            }
+            
+            # Mock Claude generator to return an empty bullet
+            from src.claude_generator import ClaudeError
+            mock_generate.side_effect = ClaudeError("Bullet 2 must be a non-empty string", 500)
+            
+            response = client.post("/generate", json={"product_name": "test product"})
+            
+            assert response.status_code == 500
