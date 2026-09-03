@@ -7,27 +7,33 @@ from dotenv import load_dotenv
 from src.schemas import GenerateRequest, GenerateResponse
 from src.serp_client import SerpAPIClient
 from src.keyword_extractor import extract_keywords
-from src.claude_generator import ClaudeGenerator, ClaudeError
+from src.llm_generator import ListingGenerator, LLMError
 
 load_dotenv()
 
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "z-ai/glm-5.3-flash")
 
-if not SERPAPI_API_KEY or not ANTHROPIC_API_KEY:
-    raise RuntimeError("Missing API keys in .env")
+if not SERPAPI_API_KEY or not OPENROUTER_API_KEY:
+    raise RuntimeError("Missing API keys (set them in .env locally or as Vercel env vars)")
+
+# Absolute paths so static serving works both locally and inside Vercel's
+# serverless filesystem (where the working directory is not the project root).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 serp_client = SerpAPIClient(SERPAPI_API_KEY)
-claude_gen = ClaudeGenerator(ANTHROPIC_API_KEY)
+llm_gen = ListingGenerator(OPENROUTER_API_KEY, OPENROUTER_MODEL)
 
 
 @app.get("/")
 def read_root():
     """Serve index.html"""
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
 @app.post("/generate")
@@ -60,8 +66,8 @@ def generate(request: GenerateRequest) -> GenerateResponse:
             # Fallback: use product_name itself if extraction fails
             keywords = [product_name]
         
-        # 3. Generate with Claude (via tool-use)
-        listing = claude_gen.generate_listing(product_name, keywords)
+        # 3. Generate with the LLM (via tool-use over OpenRouter)
+        listing = llm_gen.generate_listing(product_name, keywords)
         
         # 4. Extract source info for response
         organic_count = len(serp_result.get("organic_results", []))
@@ -84,7 +90,7 @@ def generate(request: GenerateRequest) -> GenerateResponse:
     
     except HTTPException:
         raise
-    except ClaudeError as e:
+    except LLMError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")

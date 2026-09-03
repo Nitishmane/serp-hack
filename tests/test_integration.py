@@ -5,7 +5,7 @@ import os
 
 # Ensure env vars are set before any imports
 os.environ.setdefault("SERPAPI_API_KEY", "test_key")
-os.environ.setdefault("ANTHROPIC_API_KEY", "test_key")
+os.environ.setdefault("OPENROUTER_API_KEY", "test_key")
 
 # Import app once at module level
 from main import app
@@ -26,7 +26,7 @@ def test_get_root(client):
 def test_generate_with_valid_product_name(client):
     """Test POST /generate with valid product_name returns 200 with all fields"""
     with patch('main.serp_client.search_google') as mock_search_google:
-        with patch.object(__import__('main').claude_gen, 'generate_listing') as mock_generate:
+        with patch.object(__import__('main').llm_gen, 'generate_listing') as mock_generate:
             # Mock SerpAPI response
             mock_search_google.return_value = {
                 "organic_results": [
@@ -40,7 +40,7 @@ def test_generate_with_valid_product_name(client):
                 "error": None
             }
             
-            # Mock Claude generator
+            # Mock LLM generator
             mock_generate.return_value = {
                 "title": "Premium Stainless Steel Water Bottle 32oz",
                 "description": "Keep your beverages at the perfect temperature",
@@ -95,10 +95,10 @@ def test_generate_with_serp_error_429(mock_search_google, client):
     assert response.status_code == 429
 
 
-def test_generate_with_claude_error(client):
-    """Test POST /generate with mocked Claude raising an error returns 5xx"""
+def test_generate_with_llm_error(client):
+    """Test POST /generate with mocked LLM raising an error returns 5xx"""
     with patch('main.serp_client.search_google') as mock_search_google:
-        with patch.object(__import__('main').claude_gen, 'generate_listing') as mock_generate:
+        with patch.object(__import__('main').llm_gen, 'generate_listing') as mock_generate:
             # Mock SerpAPI success
             mock_search_google.return_value = {
                 "organic_results": [{"title": "Test", "snippet": "Test snippet"}],
@@ -106,9 +106,9 @@ def test_generate_with_claude_error(client):
                 "error": None
             }
             
-            # Patch Claude generator to raise error
-            from src.claude_generator import ClaudeError
-            mock_generate.side_effect = ClaudeError("API error", 500)
+            # Patch LLM generator to raise error
+            from src.llm_generator import LLMError
+            mock_generate.side_effect = LLMError("API error", 500)
             
             response = client.post("/generate", json={"product_name": "test product"})
             
@@ -118,7 +118,7 @@ def test_generate_with_claude_error(client):
 def test_full_flow_success(client):
     """Test successful end-to-end generation flow through HTTP"""
     with patch('main.serp_client.search_google') as mock_search_google:
-        with patch.object(__import__('main').claude_gen, 'generate_listing') as mock_generate:
+        with patch.object(__import__('main').llm_gen, 'generate_listing') as mock_generate:
             # Mock SerpAPI response
             mock_search_google.return_value = {
                 "organic_results": [
@@ -132,7 +132,7 @@ def test_full_flow_success(client):
                 "error": None
             }
             
-            # Patch Claude generator
+            # Patch LLM generator
             mock_generate.return_value = {
                 "title": "Premium Stainless Steel Water Bottle",
                 "description": "Keep your beverages at perfect temperature",

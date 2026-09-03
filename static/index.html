@@ -3,63 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amazon FBA Generator</title>
+    <title>Amazon FBA Listing Generator</title>
+    <meta name="description" content="Generate SEO-optimized Amazon titles, descriptions, and bullets from live competitor research.">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Amazon FBA Listing Generator</h1>
-        <p class="subtitle">Enter your product name to generate SEO-optimized titles & descriptions</p>
-        
-        <form id="generatorForm">
-            <input 
-                type="text" 
-                id="productName" 
-                placeholder="e.g., stainless steel water bottle" 
-                maxlength="200"
-                required
-            >
-            <button type="submit" id="submitBtn">Generate</button>
-        </form>
-        
-        <div id="loading" class="hidden">
-            <p>Generating...</p>
+    <main>
+        <header class="hero">
+            <span class="eyebrow">AI-Powered Listing Builder</span>
+            <h1>Amazon FBA Listing Generator</h1>
+            <p class="stamp">
+                Enter a product and get an SEO-optimized title, description, and bullet points —
+                built from live Google competitor research (SerpAPI) and generated with GLM&nbsp;5.3&nbsp;Flash via OpenRouter.
+            </p>
+
+            <form id="generatorForm" class="search">
+                <input
+                    type="text"
+                    id="productName"
+                    placeholder="e.g., stainless steel water bottle"
+                    maxlength="200"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" id="submitBtn" class="btn">Generate</button>
+            </form>
+        </header>
+
+        <div id="loading" class="panel loading hidden">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Researching competitors &amp; generating your listing…</span>
         </div>
-        
-        <div id="error" class="hidden">
-            <p class="error-message"></p>
+
+        <div id="error" class="banner error hidden">
+            <span class="error-message"></span>
         </div>
-        
-        <div id="results" class="hidden">
-            <div class="result-item">
-                <h2>Amazon Title</h2>
-                <p id="resultTitle" class="copy-field"></p>
-                <button class="copy-btn">Copy</button>
-            </div>
-            
-            <div class="result-item">
-                <h2>Description</h2>
-                <p id="resultDescription" class="copy-field"></p>
-                <button class="copy-btn">Copy</button>
-            </div>
-            
-            <div class="result-item">
-                <h2>Key Bullet Points</h2>
-                <ul id="resultBullets"></ul>
-            </div>
-            
-            <div class="result-item">
-                <h2>Keywords Used</h2>
+
+        <div id="results" class="results hidden">
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title"><span class="dot title-dot"></span>Amazon Title</span>
+                    <button class="copy-btn" data-copy="resultTitle">Copy</button>
+                </div>
+                <p id="resultTitle" class="field"></p>
+                <span class="counter" id="titleCounter"></span>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title"><span class="dot desc-dot"></span>Description</span>
+                    <button class="copy-btn" data-copy="resultDescription">Copy</button>
+                </div>
+                <p id="resultDescription" class="field"></p>
+                <span class="counter" id="descCounter"></span>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title"><span class="dot bullet-dot"></span>Key Bullet Points</span>
+                </div>
+                <ul id="resultBullets" class="bullets"></ul>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title"><span class="dot kw-dot"></span>Keywords Used</span>
+                </div>
                 <div id="resultKeywords" class="tags"></div>
-            </div>
-            
-            <div class="result-item">
-                <h2>Source Info</h2>
+            </section>
+
+            <section class="card sources">
+                <div class="card-head">
+                    <span class="card-title"><span class="dot src-dot"></span>Source Signals</span>
+                    <span class="section-count" id="signalCount"></span>
+                </div>
                 <div id="resultSources"></div>
-            </div>
+            </section>
         </div>
-    </div>
-    
+
+        <footer>
+            SerpAPI competitor research · GLM 5.3 Flash via OpenRouter · FastAPI
+        </footer>
+    </main>
+
     <script src="/static/app.js"></script>
 </body>
 </html>
