@@ -204,7 +204,58 @@ h1 {
 .desc-dot   { background: var(--show);   box-shadow: 0 0 12px var(--show); }
 .bullet-dot { background: var(--green);  box-shadow: 0 0 12px var(--green); }
 .kw-dot     { background: var(--movie);  box-shadow: 0 0 12px var(--movie); }
+.price-dot  { background: var(--green);  box-shadow: 0 0 12px var(--green); }
+.comp-dot   { background: var(--accent); box-shadow: 0 0 12px var(--accent); }
 .src-dot    { background: var(--amber);  box-shadow: 0 0 12px var(--amber); }
+
+/* Suggested price pill */
+.price-pill {
+    font-size: .95rem;
+    font-weight: 800;
+    color: var(--green);
+    background: var(--green-soft);
+    border: 1px solid rgba(63, 185, 80, .4);
+    border-radius: 999px;
+    padding: .2rem .7rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Competitor table */
+.comp-table { display: flex; flex-direction: column; }
+
+.comp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.comp-row:last-child { border-bottom: none; }
+
+.comp-name {
+    color: var(--text);
+    font-size: .88rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.comp-stats {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-shrink: 0;
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+}
+.comp-price  { color: var(--green); font-weight: 700; }
+.comp-rating { color: var(--amber); font-weight: 600; }
+.comp-reviews { color: var(--text-faint); }
+
+.tag.engine { color: var(--accent); background: var(--accent-soft); border-color: rgba(90, 162, 255, .3); text-transform: capitalize; }
 
 .field {
     color: var(--text);

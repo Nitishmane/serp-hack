@@ -60,32 +60,72 @@ def generate(request: GenerateRequest) -> GenerateResponse:
                 detail=serp_result["error"]
             )
         
-        # 2. Extract keywords (defensively handles empty/missing keys)
+        # 2. Extract keywords across all engines (defensive on missing keys)
         keywords = extract_keywords(serp_result)
         if not keywords:
             # Fallback: use product_name itself if extraction fails
             keywords = [product_name]
-        
-        # 3. Generate with the LLM (via tool-use over OpenRouter)
-        listing = llm_gen.generate_listing(product_name, keywords)
-        
-        # 4. Extract source info for response
-        organic_count = len(serp_result.get("organic_results", []))
-        competitor_titles = [
-            r.get("title", "") for r in serp_result.get("organic_results", [])[:3]
+
+        # 3. Build a competitor-research context for positioning
+        amazon_products = serp_result.get("amazon_products", []) or []
+        price_stats = serp_result.get("price_stats")
+        top_rated = sorted(
+            [p for p in amazon_products if isinstance(p.get("rating"), (int, float))],
+            key=lambda p: (p.get("reviews") or 0),
+            reverse=True,
+        )[:3]
+        context = {
+            "competitor_titles": [p["title"] for p in amazon_products if p.get("title")],
+            "price_stats": price_stats,
+            "top_rated": top_rated,
+            "autocomplete": serp_result.get("autocomplete", []),
+        }
+
+        # 4. Generate with the LLM (via tool-use over OpenRouter)
+        listing = llm_gen.generate_listing(product_name, keywords, context)
+
+        # 5. Build source info for the response
+        engines_used = [
+            name for name, err in (serp_result.get("engine_errors") or {}).items() if not err
         ]
-        
-        # 5. Return response
+        competitor_titles = [p["title"] for p in amazon_products[:5] if p.get("title")]
+        if not competitor_titles:
+            # Fall back to Google organic titles if Amazon returned nothing
+            competitor_titles = [
+                r.get("title", "") for r in serp_result.get("organic_results", [])[:5]
+            ]
+
+        signal_count = (
+            len(serp_result.get("organic_results", []))
+            + len(amazon_products)
+            + len(serp_result.get("autocomplete", []))
+        )
+
+        # 6. Return response
         return GenerateResponse(
             title=listing["title"],
             description=listing["description"],
             bullets=listing["bullets"],
+            suggested_price=listing.get("suggested_price"),
+            positioning=listing.get("positioning"),
             keywords_used=keywords,
             sources={
                 "search_queries": [product_name],
+                "engines_used": engines_used or ["google"],
                 "competitor_titles_found": competitor_titles,
-                "signal_count": organic_count
-            }
+                "amazon_competitors": [
+                    {
+                        "title": p.get("title", ""),
+                        "price": p.get("price_str"),
+                        "rating": p.get("rating"),
+                        "reviews": p.get("reviews"),
+                    }
+                    for p in amazon_products[:8]
+                ],
+                "price_stats": price_stats,
+                "autocomplete": serp_result.get("autocomplete", [])[:10],
+                "signal_count": signal_count,
+            },
         )
     
     except HTTPException:

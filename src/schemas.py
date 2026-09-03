@@ -9,5 +9,7 @@ class GenerateResponse(BaseModel):
     title: str = Field(..., max_length=200)
     description: str = Field(..., max_length=300)
     bullets: list[str]
+    suggested_price: str | None = None
+    positioning: str | None = None
     keywords_used: list[str]
     sources: dict

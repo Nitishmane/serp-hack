@@ -46,28 +46,66 @@ function displayResults(data) {
     document.getElementById('resultKeywords').innerHTML =
         (data.keywords_used || []).map(k => `<span class="tag">${esc(k)}</span>`).join('');
 
+    renderPositioning(data);
+    renderCompetitors(data.sources || {});
     renderSources(data.sources || {});
 
     show('results');
     document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function renderPositioning(data) {
+    const card = document.getElementById('positioningCard');
+    const price = data.suggested_price || '';
+    const positioning = data.positioning || '';
+    if (!price && !positioning) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    document.getElementById('resultPrice').textContent = price;
+    document.getElementById('resultPositioning').textContent = positioning || '—';
+}
+
+function renderCompetitors(sources) {
+    const card = document.getElementById('competitorCard');
+    const comps = sources.amazon_competitors || [];
+    const stats = sources.price_stats;
+
+    if (!comps.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+
+    document.getElementById('priceRange').textContent =
+        stats ? `$${stats.min} – $${stats.max} · median $${stats.median}` : `${comps.length} listings`;
+
+    document.getElementById('resultCompetitors').innerHTML = comps.map(c => `
+        <div class="comp-row">
+            <span class="comp-name">${esc(c.title)}</span>
+            <span class="comp-stats">
+                ${c.price ? `<span class="comp-price">${esc(c.price)}</span>` : ''}
+                ${c.rating ? `<span class="comp-rating">${esc(c.rating)}★</span>` : ''}
+                ${c.reviews ? `<span class="comp-reviews">${esc(String(c.reviews))} rev</span>` : ''}
+            </span>
+        </div>
+    `).join('');
+}
+
 function renderSources(sources) {
-    const competitors = sources.competitor_titles_found || [];
     const signals = sources.signal_count ?? 0;
+    const engines = sources.engines_used || [];
+    const autocomplete = sources.autocomplete || [];
 
     document.getElementById('signalCount').textContent = `${signals} signals`;
 
     let html = '';
-    if (competitors.length) {
-        html += '<div class="src-label">Competitor titles analyzed</div><div class="comp-list">';
-        html += competitors
-            .map((t, i) => `<div class="comp-item"><span class="idx">${i + 1}.</span><span>${esc(t)}</span></div>`)
-            .join('');
+    if (engines.length) {
+        html += '<div class="src-label">Engines used</div><div class="tags">';
+        html += engines.map(e => `<span class="tag engine">${esc(e)}</span>`).join('');
         html += '</div>';
-    } else {
-        html = '<div class="comp-item">No competitor titles were returned for this query.</div>';
     }
+    if (autocomplete.length) {
+        html += '<div class="src-label" style="margin-top:.9rem">What shoppers search for</div><div class="tags">';
+        html += autocomplete.map(a => `<span class="tag">${esc(a)}</span>`).join('');
+        html += '</div>';
+    }
+    if (!html) html = '<div class="comp-item">No additional research signals for this query.</div>';
     document.getElementById('resultSources').innerHTML = html;
 }
 

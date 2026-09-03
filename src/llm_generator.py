@@ -32,11 +32,69 @@ class ListingGenerator:
         )
         self.model = model
 
-    def generate_listing(self, product_name: str, keywords: list) -> dict:
+    @staticmethod
+    def _truncate(text: str, limit: int) -> str:
+        """Trim to <= limit chars, preferring a sentence then word boundary."""
+        text = (text or "").strip()
+        if len(text) <= limit:
+            return text
+        # Prefer ending at a sentence boundary within the limit (no ellipsis needed).
+        cut = text[:limit]
+        for sep in (". ", "! ", "? "):
+            idx = cut.rfind(sep)
+            if idx >= limit * 0.6:
+                return cut[:idx + 1].strip()
+        # Otherwise trim to a word boundary, reserving one char for the ellipsis.
+        cut = text[:limit - 1]
+        sp = cut.rfind(" ")
+        if sp >= limit * 0.5:
+            cut = cut[:sp]
+        return cut.strip().rstrip(",;:-") + "…"
+
+    @staticmethod
+    def _format_research_brief(context: dict = None) -> str:
+        """Turn the competitor research context into a compact prompt section."""
+        if not context:
+            return ""
+        lines = []
+
+        titles = context.get("competitor_titles") or []
+        if titles:
+            lines.append("\nTop Amazon competitor titles:")
+            lines.extend(f"- {t}" for t in titles[:8])
+
+        stats = context.get("price_stats") or None
+        if stats:
+            lines.append(
+                f"\nCompetitor prices (USD): low ${stats.get('min')}, "
+                f"median ${stats.get('median')}, high ${stats.get('max')} "
+                f"across {stats.get('count')} listings."
+            )
+
+        top_rated = context.get("top_rated") or []
+        if top_rated:
+            lines.append("\nHighly-rated competitors (rating / reviews):")
+            lines.extend(
+                f"- {r.get('title', '')[:70]} — {r.get('rating')}★ ({r.get('reviews')} reviews)"
+                for r in top_rated[:3]
+            )
+
+        autocomplete = context.get("autocomplete") or []
+        if autocomplete:
+            lines.append("\nWhat shoppers search for (autocomplete):")
+            lines.append("- " + "; ".join(autocomplete[:10]))
+
+        return "\n".join(lines) + "\n" if lines else ""
+
+    def generate_listing(self, product_name: str, keywords: list, context: dict = None) -> dict:
         """
         Use OpenAI-style tool calling (via OpenRouter) to generate a structured listing.
 
-        Returns: {"title": "...", "description": "...", "bullets": [...]}
+        context (optional) carries competitor research to inform positioning:
+            {"competitor_titles": [...], "price_stats": {...},
+             "top_rated": [...], "autocomplete": [...]}
+
+        Returns: {"title", "description", "bullets", "suggested_price", "positioning"}
         Raises: LLMError on API failure or invalid tool response
         """
         tools = [
@@ -44,7 +102,7 @@ class ListingGenerator:
                 "type": "function",
                 "function": {
                     "name": "GenerateListing",
-                    "description": "Generate an Amazon product listing with title, description, and bullets.",
+                    "description": "Generate an SEO-optimized Amazon product listing informed by competitor research.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -59,32 +117,47 @@ class ListingGenerator:
                             "bullets": {
                                 "type": "array",
                                 "items": {"type": "string"},
-                                "description": "3-5 key feature/benefit bullets (each max 100 chars)"
+                                "description": "4-5 key feature/benefit bullets (each max 100 chars)"
+                            },
+                            "suggested_price": {
+                                "type": "string",
+                                "description": "Suggested retail price or range in USD (e.g. '$21.99' or '$18-24'), informed by competitor prices when available"
+                            },
+                            "positioning": {
+                                "type": "string",
+                                "description": "1-2 sentences on how to position this product against the competitors found (max 300 chars)"
                             }
                         },
-                        "required": ["title", "description", "bullets"]
+                        "required": ["title", "description", "bullets", "suggested_price", "positioning"]
                     }
                 }
             }
         ]
 
         keywords_str = ", ".join(keywords)
+        research_brief = self._format_research_brief(context)
         user_msg = f"""
 Product name: {product_name}
 
 SEO keywords extracted from competitor research:
 {keywords_str}
-
-Generate an Amazon listing for this product using the keywords above.
-Call the GenerateListing tool with your response.
+{research_brief}
+Generate an Amazon listing for this product. Weave the keywords in naturally,
+and use the competitor research to choose a competitive price and a sharp
+positioning angle. Call the GenerateListing tool with your response.
 """
 
         system_prompt = """You are an expert Amazon product listing copywriter who specializes in
 SEO-optimized titles and descriptions that maximize search visibility and
 conversion on Amazon.
 
-Your task is to generate a complete listing (title, description, 4-5 bullets)
-for an Amazon product, using the provided keywords naturally where appropriate.
+Your task is to generate a complete listing (title, description, 4-5 bullets,
+a suggested price, and a positioning angle) for an Amazon product, using the
+provided keywords and competitor research naturally where appropriate.
+
+When competitor prices are provided, pick a suggested_price that is genuinely
+competitive within that range. Use the competitor titles to find a positioning
+angle that differentiates this product rather than repeating what everyone says.
 
 Write rich, benefit-driven copy that uses close to the full space allowed.
 Do not stop short — a listing that barely fills half the space looks thin and
@@ -137,19 +210,19 @@ with valid JSON."""
             if not isinstance(input_dict, dict):
                 raise LLMError("Model returned invalid tool arguments", 502)
 
-            # Validate required fields and lengths
+            # Validate required fields; enforce Amazon limits by trimming (not failing)
+            # so an over-eager model doesn't 500 the whole request.
             for field in ("title", "description", "bullets"):
                 if field not in input_dict:
                     raise LLMError(f"Model tool response missing '{field}'", 500)
-            if len(input_dict.get("title", "")) > 200:
-                raise LLMError("Title exceeds 200 chars", 500)
-            if len(input_dict.get("description", "")) > 300:
-                raise LLMError("Description exceeds 300 chars", 500)
 
+            bullets = [b for b in (input_dict.get("bullets") or []) if b]
             return {
-                "title": input_dict["title"],
-                "description": input_dict["description"],
-                "bullets": input_dict["bullets"]
+                "title": self._truncate(input_dict["title"], 200),
+                "description": self._truncate(input_dict["description"], 300),
+                "bullets": [self._truncate(b, 100) for b in bullets],
+                "suggested_price": input_dict.get("suggested_price"),
+                "positioning": self._truncate(input_dict.get("positioning", ""), 300) or None,
             }
 
         except LLMError:
