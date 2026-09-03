@@ -7,27 +7,33 @@ from dotenv import load_dotenv
 from src.schemas import GenerateRequest, GenerateResponse
 from src.serp_client import SerpAPIClient
 from src.keyword_extractor import extract_keywords
-from src.claude_generator import ClaudeGenerator, ClaudeError
+from src.llm_generator import ListingGenerator, LLMError
 
 load_dotenv()
 
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "z-ai/glm-5.3-flash")
 
-if not SERPAPI_API_KEY or not ANTHROPIC_API_KEY:
-    raise RuntimeError("Missing API keys in .env")
+if not SERPAPI_API_KEY or not OPENROUTER_API_KEY:
+    raise RuntimeError("Missing API keys (set them in .env locally or as Vercel env vars)")
+
+# Absolute paths so static serving works both locally and inside Vercel's
+# serverless filesystem (where the working directory is not the project root).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 serp_client = SerpAPIClient(SERPAPI_API_KEY)
-claude_gen = ClaudeGenerator(ANTHROPIC_API_KEY)
+llm_gen = ListingGenerator(OPENROUTER_API_KEY, OPENROUTER_MODEL)
 
 
 @app.get("/")
 def read_root():
     """Serve index.html"""
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
 @app.post("/generate")
@@ -54,37 +60,77 @@ def generate(request: GenerateRequest) -> GenerateResponse:
                 detail=serp_result["error"]
             )
         
-        # 2. Extract keywords (defensively handles empty/missing keys)
+        # 2. Extract keywords across all engines (defensive on missing keys)
         keywords = extract_keywords(serp_result)
         if not keywords:
             # Fallback: use product_name itself if extraction fails
             keywords = [product_name]
-        
-        # 3. Generate with Claude (via tool-use)
-        listing = claude_gen.generate_listing(product_name, keywords)
-        
-        # 4. Extract source info for response
-        organic_count = len(serp_result.get("organic_results", []))
-        competitor_titles = [
-            r.get("title", "") for r in serp_result.get("organic_results", [])[:3]
+
+        # 3. Build a competitor-research context for positioning
+        amazon_products = serp_result.get("amazon_products", []) or []
+        price_stats = serp_result.get("price_stats")
+        top_rated = sorted(
+            [p for p in amazon_products if isinstance(p.get("rating"), (int, float))],
+            key=lambda p: (p.get("reviews") or 0),
+            reverse=True,
+        )[:3]
+        context = {
+            "competitor_titles": [p["title"] for p in amazon_products if p.get("title")],
+            "price_stats": price_stats,
+            "top_rated": top_rated,
+            "autocomplete": serp_result.get("autocomplete", []),
+        }
+
+        # 4. Generate with the LLM (via tool-use over OpenRouter)
+        listing = llm_gen.generate_listing(product_name, keywords, context)
+
+        # 5. Build source info for the response
+        engines_used = [
+            name for name, err in (serp_result.get("engine_errors") or {}).items() if not err
         ]
-        
-        # 5. Return response
+        competitor_titles = [p["title"] for p in amazon_products[:5] if p.get("title")]
+        if not competitor_titles:
+            # Fall back to Google organic titles if Amazon returned nothing
+            competitor_titles = [
+                r.get("title", "") for r in serp_result.get("organic_results", [])[:5]
+            ]
+
+        signal_count = (
+            len(serp_result.get("organic_results", []))
+            + len(amazon_products)
+            + len(serp_result.get("autocomplete", []))
+        )
+
+        # 6. Return response
         return GenerateResponse(
             title=listing["title"],
             description=listing["description"],
             bullets=listing["bullets"],
+            suggested_price=listing.get("suggested_price"),
+            positioning=listing.get("positioning"),
             keywords_used=keywords,
             sources={
                 "search_queries": [product_name],
+                "engines_used": engines_used or ["google"],
                 "competitor_titles_found": competitor_titles,
-                "signal_count": organic_count
-            }
+                "amazon_competitors": [
+                    {
+                        "title": p.get("title", ""),
+                        "price": p.get("price_str"),
+                        "rating": p.get("rating"),
+                        "reviews": p.get("reviews"),
+                    }
+                    for p in amazon_products[:8]
+                ],
+                "price_stats": price_stats,
+                "autocomplete": serp_result.get("autocomplete", [])[:10],
+                "signal_count": signal_count,
+            },
         )
     
     except HTTPException:
         raise
-    except ClaudeError as e:
+    except LLMError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error")

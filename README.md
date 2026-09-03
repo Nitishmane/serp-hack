@@ -1,7 +1,7 @@
 # Amazon FBA Listing Generator
 
 Generate SEO-optimized Amazon product titles, descriptions, and bullet points 
-using SerpAPI competitive research and Claude AI.
+using SerpAPI competitive research and an LLM via OpenRouter (default: GLM 5.3 Flash).
 
 ## Demo
 
@@ -14,7 +14,7 @@ and competitor analysis.
 ### Requirements
 - Python 3.9+
 - SerpAPI account (free tier: 100 searches/month)
-- Anthropic Claude API key
+- OpenRouter API key (https://openrouter.ai/keys)
 
 ### Install
 
@@ -83,7 +83,7 @@ pytest tests/ -v
 ## Architecture
 
 - **SerpAPI**: Google search results for keyword extraction
-- **Claude AI (Tool-Use)**: Structured listing generation via native tool-calling
+- **OpenRouter (GLM 5.3 Flash, tool-calling)**: Structured listing generation via OpenAI-compatible function calling. Set `OPENROUTER_MODEL` to swap in any other OpenRouter model.
 - **FastAPI**: Async-ready REST API
 - **Frontend**: Vanilla HTML/CSS/JS (no dependencies)
 

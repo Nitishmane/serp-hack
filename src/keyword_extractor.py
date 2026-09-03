@@ -107,21 +107,28 @@ def extract_keywords(serp_data: dict, top_n: int = 15) -> list:
         List of top keywords/phrases
     """
     all_text = []
-    
-    # Defensive: check if organic_results exists and is iterable
-    if "organic_results" in serp_data and serp_data["organic_results"]:
-        for result in serp_data["organic_results"]:
-            title = result.get("title", "")
-            snippet = result.get("snippet", "")
-            if title:
-                all_text.append(title)
-            if snippet:
-                all_text.append(snippet)
-    
-    # Defensive: check if related_searches exists and is iterable
-    if "related_searches" in serp_data and serp_data["related_searches"]:
-        all_text.extend(serp_data["related_searches"])
-    
+
+    # Google organic titles + snippets
+    for result in serp_data.get("organic_results") or []:
+        title = result.get("title", "")
+        snippet = result.get("snippet", "")
+        if title:
+            all_text.append(title)
+        if snippet:
+            all_text.append(snippet)
+
+    # Google related searches + people-also-ask questions
+    all_text.extend(s for s in (serp_data.get("related_searches") or []) if s)
+    all_text.extend(q for q in (serp_data.get("related_questions") or []) if q)
+
+    # Amazon competitor product titles (highest-signal for FBA)
+    for product in serp_data.get("amazon_products") or []:
+        if product.get("title"):
+            all_text.append(product["title"])
+
+    # Google Autocomplete long-tail phrases
+    all_text.extend(s for s in (serp_data.get("autocomplete") or []) if s)
+
     if not all_text:
         return []  # No crash; just return empty list
     
